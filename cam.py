@@ -1,5 +1,5 @@
 import cv2
-harcascade = "haarcascade_russian_plate_number.xml"
+harcascade = r"./haarcascade_russian_plate_number.xml"
 plate_detector = cv2.CascadeClassifier(harcascade)
 cap = cv2.VideoCapture('rtsp://admin:Mo123Pfe6@192.168.166.29:554/user=admin&password=Mo123Pfe6&channel=1&stream=0.sdp?')
 while True:

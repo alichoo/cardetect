@@ -5,7 +5,7 @@ import numpy as np
 import pytesseract
 pytesseract.pytesseract.tesseract_cmd="tesseract"
 
-img = cv2.imread('exp1.jpg',cv2.IMREAD_COLOR)
+img = cv2.imread('matricu.jpg',cv2.IMREAD_COLOR)
 img = cv2.resize(img, (600,400) )
 
 gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) 

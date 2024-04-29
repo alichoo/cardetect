@@ -1,6 +1,9 @@
 import cv2
 import pytesseract
 import pandas as pd
+import imutils
+import numpy as np
+
 import RPi.GPIO as GPIO
 GPIO.setwarnings(False)
 # Configuration GPIO
@@ -21,7 +24,7 @@ def read_excel_file(file_path):
         return None
     except Exception as e:
         print("An error occurred:", e)
-        return None
+        return 
 def compare_matricule(matricule_capture,df ):
     if matricule_capture in df['matricule'].values:
          return true
@@ -29,21 +32,62 @@ def compare_matricule(matricule_capture,df ):
             return false 
 
 def capture_matricule(image_path):
-    # Chargement de l'image avec OpenCV
-    image = cv2.imread(image_path)
-
-    # Conversion en niveaux de gris
- 
-    gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
-    # Utilisation de Tesseract pour extraire le texte
-    matricule = pytesseract.image_to_string(gray_image)
-
-    return matricule.strip()
-def detecter_capture():
-    
-        harcascade = "haarcascade_russian_plate_number.xml"
+        Cropped=""
+        harcascade = r"./haarcascade_russian_plate_number.xml"
         plate_detector = cv2.CascadeClassifier(harcascade)
+        img = cv2.imread(image_path,cv2.IMREAD_COLOR)
+        img = cv2.resize(img, (600,400) )
+
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) 
+        gray = cv2.bilateralFilter(gray, 13, 15, 15) 
+        edged = cv2.Canny(gray, 30, 200) 
+        contours = cv2.findContours(edged.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        contours = imutils.grab_contours(contours)
+        contours = sorted(contours, key = cv2.contourArea, reverse = True)[:10]
+        screenCnt = None
+
+        for c in contours:
+            
+            peri = cv2.arcLength(c, True)
+            approx = cv2.approxPolyDP(c, 0.018 * peri, True)
+         
+            if len(approx) == 4:
+                screenCnt = approx
+                break
+
+        if screenCnt is None:
+            detected = 0
+            text="0"
+            
+        else:
+             detected = 1
+
+        if detected == 1:
+            cv2.drawContours(img, [screenCnt], -1, (0, 0, 255), 3)
+
+            mask = np.zeros(gray.shape,np.uint8)
+            new_image = cv2.drawContours(mask,[screenCnt],0,255,-1,)
+            new_image = cv2.bitwise_and(img,img,mask=mask)
+
+            (x, y) = np.where(mask == 255)
+            (topx, topy) = (np.min(x), np.min(y))
+            (bottomx, bottomy) = (np.max(x), np.max(y))
+            Cropped = gray[topx:bottomx+1, topy:bottomy+1]
+
+            text = pytesseract.image_to_string(Cropped, config='--psm 11',lang='fra+ara')
+             
+            img = cv2.resize(img,(500,300))
+            Cropped = cv2.resize(Cropped,(400,200))
+           # cv2.imshow('car',img)
+            #cv2.imshow('Cropped',Cropped)
+
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+        return text,Cropped
+
+def detecter_capture(output_path):
+    
+         
         cap = cv2.VideoCapture('rtsp://admin:Mo123Pfe6@192.168.166.29:554/user=admin&password=Mo123Pfe6&channel=1&stream=0.sdp?')
         while True:
             ret, frame = cap.read()
@@ -56,16 +100,17 @@ def detecter_capture():
             for contour in contours:
                 area = cv2.contourArea(contour)
                 if area > 500:
-                    cv2.drawContours(frame, [contour], 0, (0, 255, 0), 2)
+                  #  cv2.drawContours(frame, [contour], 0, (0, 255, 0), 2)
                     x, y, w, h = cv2.boundingRect(contour)
-                    cv2.putText(frame, "Contour", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-                    cv2.putText(frame, "Edge", (x + w - 50, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                #  cv2.putText(frame, "Contour", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                  #  cv2.putText(frame, "Edge", (x + w - 50, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
             cv2.imshow("Edges and Contours", frame)
             
-            if cv2.imwrite("matricu.jpg",frame):
+            if cv2.imwrite(output_path,frame):
                 break
         cap.release()
         cv2.destroyAllWindows()
+        return 
 
 def allumer_led(matricule):  
     # Verification du matricule
@@ -78,8 +123,21 @@ def allumer_led(matricule):
 
 if __name__ == "__main__":
     image_path = "matricu.jpg"
-    detecter_capture()
-    matricule = capture_matricule(image_path)
+    matricule="ok"
     print("Matricule detecte :", matricule)
+    while True:
+        detecter_capture(image_path)
+        matricule,img = capture_matricule(image_path)
+        if len(matricule) >1:
+            print("Matricule detecte :", matricule)
+            break
+        else: 
+            print("Matricule detecte :", matricule)
+            
+        if len(img)>0:
+            cv2.imshow('',img)
     
     allumer_led(matricule)
+        
+    
+
